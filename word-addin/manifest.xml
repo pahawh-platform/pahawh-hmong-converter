@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+  xsi:type="TaskPaneApp">
+
+  <!-- ── Identity ── -->
+  <!-- Generate a fresh GUID at https://www.guidgenerator.com/ for your own release -->
+  <Id>a1b2c3d4-e5f6-7890-abcd-ef1234567890</Id>
+  <Version>2.0.0</Version>
+  <ProviderName>Pahawh Platform</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+
+  <!-- ── Display names ── -->
+  <DisplayName DefaultValue="Pahawh Converter"/>
+  <Description DefaultValue="Convert Hmong RPA text to Pahawh Hmong Unicode script — and back."/>
+
+  <!-- ── Icons ── -->
+  <!-- Replace these URLs with your own hosted icons before publishing -->
+  <IconUrl DefaultValue="https://pahawh-platform.github.io/pahawh-hmong-converter/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://pahawh-platform.github.io/pahawh-hmong-converter/assets/icon-64.png"/>
+  <SupportUrl DefaultValue="https://github.com/pahawh-platform/pahawh-hmong-converter"/>
+
+  <!-- ── Permissions ── -->
+  <!-- ReadWriteDocument needed to read selection and write converted text back -->
+  <Permissions>ReadWriteDocument</Permissions>
+
+  <!-- ── Host: Word only ── -->
+  <Hosts>
+    <Host Name="Document"/>
+  </Hosts>
+
+  <!-- ── Default task pane size ── -->
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://pahawh-platform.github.io/pahawh-hmong-converter/word-addin/taskpane.html"/>
+  </DefaultSettings>
+
+  <!-- ── Ribbon button (Word 2016+ / Microsoft 365) ── -->
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Document">
+        <DesktopFormFactor>
+
+          <FunctionFile resid="Commands.Url"/>
+
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="PahawhGroup">
+                <Label resid="GroupLabel"/>
+
+                <!-- Ribbon button that opens the task pane -->
+                <Control xsi:type="Button" id="TaskpaneButton">
+                  <Label resid="TaskpaneButton.Label"/>
+                  <Supertip>
+                    <Title resid="TaskpaneButton.Label"/>
+                    <Description resid="TaskpaneButton.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16"  resid="Icon.16x16"/>
+                    <bt:Image size="32"  resid="Icon.32x32"/>
+                    <bt:Image size="80"  resid="Icon.80x80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>ButtonId1</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Url"/>
+                  </Action>
+                </Control>
+
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16x16" DefaultValue="https://pahawh-platform.github.io/pahawh-hmong-converter/assets/icon-16.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="https://pahawh-platform.github.io/pahawh-hmong-converter/assets/icon-32.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="https://pahawh-platform.github.io/pahawh-hmong-converter/assets/icon-80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="Commands.Url"   DefaultValue="https://pahawh-platform.github.io/pahawh-hmong-converter/word-addin/commands.html"/>
+        <bt:Url id="Taskpane.Url"   DefaultValue="https://pahawh-platform.github.io/pahawh-hmong-converter/word-addin/taskpane.html"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="GroupLabel"            DefaultValue="Pahawh"/>
+        <bt:String id="TaskpaneButton.Label"  DefaultValue="Pahawh Converter"/>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the Pahawh Converter to convert Hmong RPA to Pahawh Unicode script."/>
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+
+</OfficeApp>
