@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Convert Hmong RPA to Pahawh Hmong. For full demo, visit the Pahawh Converter at Pahawh Hmong Platform.">
+    <title>Pahawh Converter by Vao Her & Pahawh Platform</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    
+    <link rel="stylesheet" href="style.css">
+
+    <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+
+<style>
+  :root {
+    --text-color-regular: #484848;
+    --text-color-strong:  #222222;
+    --text-color-muted:   #767676;
+    --bg-color-body:      #ffffff;
+    --link: #1565C0;
+    --link-hover: #0D47A1;
+    --link-underline: #C5CAE9;
+
+    --gray-100: #f8f8f8;
+    --gray-200: #f2f2f2;
+    --gray-300: #cccccc;
+    --gray-400: #767676;
+    --gray-500: #484848;
+    --gray-600: #222222;
+    --yellow: #fbbc09;
+    --blue: #0D47A1;
+
+    --semantic-danger: #B71C1C;
+  }
+
+  .pahawh-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 8px;
+      padding: 3px 6px;
+      border: 1.5px solid var(--gray-300);
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--gray-500);
+      vertical-align: middle;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .pahawh-toggle-btn:hover {
+      border-color: var(--gray-600);
+      color: var(--gray-600);
+    }
+
+
+  /* COLORS */
+    /* Text Colors */
+    .text-gray-500 {
+      color: var(--gray-500);
+    }
+
+    .text-gray-600 {
+      color: var(--gray-600);
+    }
+
+    .text-gray-400 {
+      color: var(--gray-400);
+    }
+
+    /* Background Colors */
+    .gray-100 {
+      background-color: var(--gray-100);
+    }
+
+    .gray-200 {
+      background-color: var(--gray-200);
+    }
+
+    .gray-300 {
+      background-color: var(--gray-300);
+    }
+
+    .gray-400 {
+      background-color: var(--gray-400);
+    }
+
+    .gray-500 {
+      background-color: var(--gray-500);
+    }
+
+    .gray-600 {
+      background-color: var(--gray-600);
+    }
+
+
+  /* TYPE */
+  .font-google {
+    font-family: 'Google Sans Flex', ui-sans-serif, system-serif, sans-serif;
+  }
+
+  .font-noto {
+    font-family: 'Noto Sans Pahawh Hmong';
+  }
+
+  body {
+    font-family: 'Google Sans Flex', ui-sans-serif, system-serif, sans-serif;
+    color: var(--text-color-regular);
+    font-size: 1em;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+
+  h1, .fs-h1 {
+    
+    font-size: 1.875em;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-top: 1.08em;
+    margin-bottom: 0;
+  }
+
+  h2, .fs-h2 {
+    font-size: 1.5em;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-top: 1.1em;
+    margin-bottom: 0;
+  }
+
+  h3, .fs-h3 {
+    font-size: 1.25em;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-top: 1em;
+    margin-bottom: 0;
+  }
+
+
+  .fs-p {
+    font-size: 1em;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+
+  .fs-p-sm {
+    font-size: 0.875em;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+
+  .fs-p-xs {
+    font-size: 0.65em;
+    font-weight: 400;
+    line-height: 1;
+  }
+
+  /* SPACING */
+    /* Margin */
+    .space-xs {
+      margin-top: .5rem;
+    }
+
+    .space-sm {
+      margin-top: 1rem;
+    }
+
+    .space {
+      margin-top: 1.5rem;
+    }
+
+    .space-md {
+      margin-top: 2.5rem;
+    }
+
+    .space-lg {
+      margin-top: 5rem;
+    }
+
+    .space-xl {
+      margin-top: 10rem;
+    }
+
+    /* Padding */
+    .space-p-xs {
+      margin-top: .5rem;
+    }
+
+    .space-p-sm {
+      margin-top: 1rem;
+    }
+
+    .space-p {
+      margin-top: 1.5rem;
+    }
+
+    .space-p-md {
+      margin-top: 2.5rem;
+    }
+
+    .space-p-lg {
+      margin-top: 5rem;
+    }
+
+    .space-p-xl {
+      margin-top: 10rem;
+    }
+
+  /* UI */
+
+    /* Buttons */
+    .icon-center {
+          display: inline-flex !important;
+          align-items: center !important;
+      }
+
+  /* BOOTSTRAP OVERRIDE */
+    a {
+      color: var(--link);
+      text-underline-offset: 3px;
+      text-decoration-color: var(--link-underline);
+    }
+
+    a:hover {
+      color: var(--link-hover);
+      
+    }
+</style>
+
+</head>
+<body>
+<div class="space-xs"></div>
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-md-10 col-11 text-end">
+            <a href="https://github.com/pahawh-platform/pahawh-hmong-converter" type="button" class="btn btn-light white icon-center btn-sm">
+                Github<span class="d-none d-md-block">: @pahawh-platform</span>
+            </a>
+            <a href="https://pahawh.org" type="button" target="_blank" class="btn btn-light btn-sm white icon-center">
+                Pahawh Platform <span class="material-symbols-rounded fs-p ms-1">arrow_outward</span>
+            </a>
+            <hr>
+        </div>
+        <div class="col-lg-8 col-md-10 col-11">
+            <div class="row">
+                <div class="col">
+                    <div class="space-xs"></div>
+                    <h1 class="fw-bold fs-3 m-0 p-0">Pahawh Converter (v2)</h1>
+                    <div class="space"></div>
+                    <p>
+                        Convert Hmong RPA to Pahawh Hmong. For full demo, visit the <a href="https://www.pahawh.com/converter.html">Pahawh Converter</a> at Pahawh Hmong Platform.
+                    </p>
+                    <p>
+                        On this page:
+                        <ol>
+                            <li>
+                                <a href="#topic0">Getting started</a>
+                            </li>
+                            <li>
+                                <a href="#topic1">Static conversion</a>
+                            </li>
+                            <li>
+                                <a href="#topic2">Toggle</a>
+                            </li>
+                            <li>
+                            <a href="#topic3">Dynamic content</a>
+                            </li>
+                            <li>
+                                <a href="#topic4">JavaScript API</a>
+                            </li>
+                        </ol>
+                    </p>
+                </div>
+            </div>
+            <!-- About the writing system -->
+            <div class="row">
+                <div class="col">
+                    <h2>About Pahawh Hmong</h2>
+                    <p class="mt-3">
+                        Pahawh Hmong (𖬖𖬲𖬝𖬵 𖬄𖬲𖬟 𖬌𖬣𖬵) is an indigenous writing system created by Shong Lue Yang in the 1950s for the Hmong language. It is encoded in Unicode at code points U+16B00–U+16B8F. The script reads left to right and encodes syllables differently from the Latin-based RPA — vowels are written before consonants in Pahawh, which is the reverse of RPA.
+                    </p>
+                    <p class="fs-p-sm">
+                        Learn more:<br>
+                        <a href="https://press.uchicago.edu/ucp/books/book/chicago/M/bo3645709.html" target="_blank">Mother of Writing: The Origin and Development of a Hmong Messianic Script<span class="material-symbols-rounded fs-p-sm ms-1">arrow_outward</span></a><br>
+                        by Chia Koua Vang, Gnia Yee Yang & <a href="https://en.wikipedia.org/wiki/William_A._Smalley" target="_blank">William A. Smalley<span class="material-symbols-rounded fs-p-sm ms-1">arrow_outward</span></a> (co-founder of the Hmong RPA writing system)
+                    </p>
+                </div>
+            </div>
+            <div class="space-md"></div>
+            <hr>
+            <div class="space-md"></div>
+            <!-- Getting Started -->
+            <div class="row">
+                <div id="topic0" class="col">
+                    <h2>Getting started</h2>
+                    <h3 class="text-gray-400">Dependency</h3>
+                    <p class="mt-3">
+                        The library applies '<a href="https://fonts.google.com/noto/specimen/Noto+Sans+Pahawh+Hmong?preview.script=Hmng" type="button" target="_blank">Noto Sans Pahawh Hmong<span class="material-symbols-rounded fs-p-sm ms-1">arrow_outward</span></a>', sans-serif to converted elements. For best rendering load the font in your <span class="fw-semibold">&lt;head&gt;</span> before the library:
+                    </p>
+                    <div class="row p-4 rounded-4 alert alert-warning">
+                        <div class="col">
+                            <div class="fs-p-sm ">
+                                HTML
+                                <div class="space-sm"></div>
+                                <pre>&lt;link rel="preconnect" href="https://fonts.googleapis.com"&gt;
+&lt;link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Pahawh+Hmong&display=swap" rel="stylesheet"&gt;
+                                </pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-md"></div>
+                    <h3 class="text-gray-400">Pahawh Stage Support</h3>
+                    <p class="mt-3">
+                        Pahawh Converter 2.0 supports both the Second Stage Reduced Version and the Third Stage Refined Version. The default conversion uses the Third Stage Refined Version.
+                    </p>
+                    <p>
+                        Refer to the <a href="#topic4">JavaScript API</a> on how to use 2nd Stage Reduced Version.
+                    </p>
+                </div>
+            </div>
+
+            <div class="space-md"></div>
+            <!-- 1 -->
+            <div class="row">
+                <div id="topic1" class="col">
+                    <h2>1. Static conversion <span class="ms-2 p-1 rounded-2 px-3 border fs-p-xs">.to-pahawh</span></h2>
+                    <p class="mt-3">
+                        One-way. RPA text is converted to Pahawh on page load. No button, no toggle. Use this for headings, labels, nav items — any static UI text.
+                    </p>
+                    <p class="text-gray-400 fs-p-sm">
+                        *Any word not recgonized as Hmong will be ignore (with exceptions).
+                    </p>
+                    <div class="space"></div>
+                    <div class="row align-items-center p-4 rounded-4 alert alert-light border-2">
+                        <div class="col-lg-5 col-6">
+                                <p>
+                                    Nyob zoov saw dawg
+                                </p>
+                                <p>
+                                    Ua tsaug ntau heev rau koj
+                                </p>
+                                <p>
+                                    Nyob Zoo <span class="text-danger">everyone</span>, koj nyob li cas?
+                                </p>
+                        </div>
+                        <div class="col-lg-2 col-1 text-center">
+                            <span class="material-symbols-rounded">arrow_forward</span>
+                        </div>
+                        <div class="col-5">
+                            <div>
+                                <p class="to-pahawh">
+                                    Nyob zoov saw dawg
+                                </p>
+                                <p class="to-pahawh">
+                                    Ua tsaug ntau heev rau koj
+                                </p>
+                                <p class="to-pahawh">
+                                    Nyob Zoo everyone, koj nyob li cas?
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row p-4 rounded-4 alert alert-warning">
+                        <div class="col">
+                            <div class="fs-p-sm ">
+                                HTML
+                                <div class="space-sm"></div>
+                                <pre>&lt;p class="to-pahawh"&gt;Nyob Zoo sawv daws&lt;/p&gt;
+&lt;p class="to-pahawh"&gt;Ua tsaug ntau heev rau koj&lt;/p&gt;
+
+&lt;!-- English words pass through silently --&gt;
+&lt;p class="to-pahawh"&gt;Nyob Zoo everyone, koj nyob li cas?&lt;/p&gt;</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="space-md"></div>
+            <!-- 2 -->
+            <div class="row">
+                <div id="topic2" class="col">
+                    <h2>2. Toggle</h2>
+                    <div class="space"></div>
+                    <h3 class="text-gray-400">Starts as RPA <span class="ms-2 p-1 rounded-2 px-3 border fs-p-xs">.toggle-pahawh .rpa</span></h3>
+                    <p class="mt-3">
+                        RPA is converted to Pahawh on load. The swap button lets readers toggle back.
+                    </p>
+                    <div class="space"></div>
+                    <div class="p-4 rounded-4 alert alert-light border-2">
+                        <p class="toggle-pahawh rpa">Kuv hlub hmoob.</p>
+                        <p class="toggle-pahawh rpa">Koj puas paub hais lus hmoob?</p>
+                    </div>
+                    <div class="space"></div>
+                    <div class="p-4 rounded-4 alert alert-warning fs-p-sm">
+                        HTML
+                        <div class="space-sm"></div>
+                        <pre>&lt;p class="toggle-pahawh rpa"&gt;<span class="fw-semibold">kuv hlub hmoob.</span>&lt;/p&gt;
+&lt;p class="toggle-pahawh rpa"&gt;<span class="fw-semibold">Koj puas paub hais lus hmoob?</span>&lt;/p&gt;</pre>
+                    </div>
+                    <div class="space-md"></div>
+                    <h3 class="text-gray-400">Starts as Pahawh<span class="ms-2 p-1 rounded-2 px-3 border fs-p-xs">.toggle-pahawh .pahawh</span></h3>
+                    <p class="mt-3">
+                       Text is already authored in Pahawh unicode. The swap button converts to RPA on demand.
+                    </p>
+                    <div class="space"></div>
+                    <div class="p-4 rounded-4 alert alert-light border-2">
+                        <p class="toggle-pahawh pahawh">𖬇 𖬆𖬥 𖬌𖬣𖬵.</p>
+                        <p class="toggle-pahawh pahawh">𖬒𖬲 𖬑𖬲𖬪𖬵 𖬄𖬪𖬵 𖬋𖬲𖬟 𖬇𖬲𖬞 𖬌𖬣𖬵?</p>
+                    </div>
+                    <div class="space"></div>
+                    <div class="p-4 rounded-4 alert alert-warning fs-p-sm">
+                                HTML
+                                <div class="space-sm"></div>
+                                <pre>&lt;p class="toggle-pahawh pahawh"&gt;<span class="fw-bold">𖬇 𖬆𖬥 𖬌𖬣𖬵.</span>&lt;/p&gt;
+&lt;p class="toggle-pahawh pahawh"&gt;<span class="fw-bold">𖬒𖬲 𖬑𖬲𖬪𖬵 𖬄𖬪𖬵 𖬋𖬲𖬟 𖬇𖬲𖬞 𖬌𖬣𖬵?</span>&lt;/p&gt;</pre>
+                    </div>
+                </div>
+            </div>
+            <div class="space-md"></div>
+            <!-- 3 -->
+            <div class="row">
+                <div id="topic3" class="col">
+                    <h2>3. Dynamic content</h2>
+                    <p class="mt-3">
+                       Content added after page load. Use PahawhConverter.convert(el) manually, or pass { observe: true } to init() to watch automatically.
+                    </p>
+                    <div class="space"></div>
+                    <div class="p-4 rounded-4 alert alert-light border-2">
+                        <p id="dynamicTarget">
+                            <em>Click the button to inject dynamic content…</em>
+                        </p>
+                        <div class="space-sm"></div>
+                        <button onclick="injectDynamic()" class="btn btn-sm btn-dark px-3 py-2">Inject dynamic element</button>
+                    </div>
+                    <div class="space"></div>
+                    <div class="p-4 rounded-4 alert alert-warning fs-p-sm">
+                                JavaScript
+                                <div class="space-sm"></div>
+                                <pre>// Option A — manual convert after injecting
+const el = document.createElement('p');
+el.className = 'to-pahawh';
+el.textContent = 'Nyob Zoo';
+container.appendChild(el);
+PahawhConverter.convert(el);
+
+// Option B — observe mode (set once at init)
+PahawhConverter.init({ observe: true });</pre>
+                            </div>
+                </div>
+            </div>
+            <div class="space-md"></div>
+            <!-- 4 -->
+            <div class="row">
+                <div id="topic4" class="col">
+                    <h2>4. JavaScript API</h2>
+                    <div class="space"></div>
+                    <hr>
+                    <div class="row mt-3 fs-p-sm">
+                        <div class="col-md-6 col-11 fw-semibold">
+                            PahawhConverter.toPahawh(text, mode?, version?, options?)
+                        </div>
+                         <div class="col-md-6 col-11 text-gray-400">
+                            Convert RPA → Pahawh. version: 2 or 3. options: { pahawhPunctuation, pahawhNumerals, pahawhRedup }
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row mt-3 fs-p-sm">
+                        <div class="col-md-6 col-11 fw-semibold">
+                            PahawhConverter.toRPA(text, version?)
+                        </div>
+                         <div class="col-md-6 col-11 text-gray-400">
+                            Convert Pahawh unicode string → RPA string. version: 2 or 3 (default 3)
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row mt-3 fs-p-sm">
+                        <div class="col-md-6 col-11 fw-semibold">
+                            PahawhConverter.toggle(el)
+                        </div>
+                         <div class="col-md-6 col-11 text-gray-400">
+                            Flip a .toggle-pahawh element between Pahawh and RPA
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row mt-3 fs-p-sm">
+                        <div class="col-md-6 col-11 fw-semibold">
+                            PahawhConverter.convert(el)
+                        </div>
+                         <div class="col-md-6 col-11 text-gray-400">
+                            Manually process a single .to-pahawh or .toggle-pahawh element
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row mt-3 fs-p-sm">
+                        <div class="col-md-6 col-11 fw-semibold">
+                            PahawhConverter.init({ observe, root })
+                        </div>
+                         <div class="col-md-6 col-11 text-gray-400">
+                            Re-scan for elements. observe:true enables MutationObserver.
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row mt-3 fs-p-sm">
+                        <div class="col-md-6 col-11 fw-semibold">
+                            PahawhConverter.version
+                        </div>
+                         <div class="col-md-6 col-11 text-gray-400">
+                            Returns version (e.g. 2.0.0)
+                        </div>
+                    </div>
+
+                    <div class="space-md"></div>
+                    <div class="pp-4 rounded-4 alert alert-warning fs-p-sm">
+                                JavaScript
+                                <div class="space-sm"></div>
+<pre>// Basic programmatic use (Uses Pahawh Stage 3 as default)
+const pahawh = PahawhConverter.toPahawh('Nyob Zoo sawv daws');
+const rpa    = PahawhConverter.toRPA('𖬒𖬮𖬵 𖬍𖬰𖬥𖬰 𖬏𖬤𖬵 𖬏𖬲𖬞𖬰');
+
+// For using Second Stage Reduced
+const pahawhV2 = PahawhConverter.toPahawh('Nyob Zoo sawv daws', 'plain', 2);
+const rpaV2    = PahawhConverter.toRPA(pahawhV2, 2);
+
+// Define optional conversion settings (opt-in)
+const result = PahawhConverter.toPahawh('zoo zoo!', 'plain', 3, {
+  pahawhPunctuation: true,   // !,? → 𖬸𖬹𖬷
+  pahawhNumerals: true,      // 123 → 𖭑𖭒𖭓
+  pahawhRedup: true          // zoo zoo → 𖬍𖬰𖬥𖬰 𖭂
+});
+
+// Enable dynamic content observation
+PahawhConverter.init({ observe: true });
+
+// Scope to a subtree or within a container
+PahawhConverter.init({ root: document.getElementById('blog-content') });</pre>
+                            </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="space-lg"></div>
+
+<div class="container">
+    <div class="row justify-content-center pb-4">
+        <div class="col-lg-8 col-md-10 col-11 fs-p-sm text-center">
+            Original Pahawh Converter by Vao Her © 2017. Library design, Pahawh Unicode mapping, optimization, and open-source release by Pahawh Platform © 2026. MIT License — Copyright © 2017-2026 Vao Her & Pahawh Platform. See <a href="https://github.com/pahawh-platform/pahawh-hmong-converter/blob/main/LICENSE">LICENSE</a> for the full text.
+        </div>
+    </div>
+</div>
+
+
+<script src="pahawh-converter.js"></script>
+<script>
+  // Dynamic injection demo (section 3)
+  let injected = false;
+  function injectDynamic() {
+    const target = document.getElementById("dynamicTarget");
+    if (injected) {
+      target.innerHTML = '<em>Click the button to inject dynamic content…</em>';
+      injected = false;
+      return;
+    }
+
+    target.innerHTML = "";
+
+    // Static element — manually convert after injection
+    const p1 = document.createElement("p");
+    p1.className   = "to-pahawh";
+    p1.textContent = "Nyob Zoo";
+    p1.style.marginBottom = "6px";
+    target.appendChild(p1);
+    PahawhConverter.convert(p1);
+
+    // Toggle element — manually convert after injection
+    const p2 = document.createElement("p");
+    p2.className   = "toggle-pahawh rpa";
+    p2.textContent = "Koj nyob li cas?";
+    target.appendChild(p2);
+    PahawhConverter.convert(p2);
+
+    injected = true;
+  }
+</script>
+
+</body>
+</html>
