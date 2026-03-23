@@ -1,4 +1,4 @@
-# pahawh-hmong-converter
+# Pahawh Hmong Converter
 
 A fast, dependency-free JavaScript library for converting Hmong RPA (Romanized Popular Alphabet) to Pahawh Hmong Unicode script — and back. Supports both **Version 2** (Second Stage Reduced) and **Version 3** (Third Stage Reduced) of Pahawh Hmong. The first open-source Hmong RPA ↔ Pahawh converter on the web.
 
