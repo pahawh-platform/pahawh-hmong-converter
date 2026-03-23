@@ -7,7 +7,8 @@ A fast, dependency-free JavaScript library for converting Hmong RPA (Romanized P
 <!-- becomes → 𖬒𖬮𖬵 𖬍𖬰𖬥𖬰 𖬏𖬤𖬵 𖬏𖬲𖬞𖬰 -->
 ```
 
-**[Live Demo →](https://pahawh-platform.github.io/pahawh-hmong-converter/)**
+**[Live Demo →](https://pahawh-platform.github.io/pahawh-hmong-converter/)** &nbsp;&nbsp;&nbsp;
+**[CodePen Demo →](https://codepen.io/Pahawh-Platform/pen/raMGbvd)**
 
 ---
 
