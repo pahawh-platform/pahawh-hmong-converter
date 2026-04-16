@@ -13,7 +13,7 @@
  * @@@@@@@@@@@@@@@@@@@@@@@@@@                                                                             
  *
  * 
- * pahawh-converter.js v2.0.0
+ * pahawh-converter.js v2.1.0
  * Hmong RPA ↔ Pahawh Hmong Unicode converter
  * Supports Pahawh Phiaj 2 (Version 2 - Second Stage Reduced) and Phiaj 3 (Version 3 - Third Stage Reduced)
  *
@@ -53,7 +53,7 @@
 
 const PahawhConverter = (() => {
 
-  const VERSION = '2.0.0';
+  const VERSION = '2.1.0';
 
   // Conversion data (shared between Phiaj 2 (V2) and Phiaj 3 (V3))
 
@@ -262,6 +262,29 @@ const PahawhConverter = (() => {
     }
   })();
 
+  // Pahawh → RPA trie for longest-match syllable scanning
+  //
+  // Many Pahawh syllable encodings are prefixes of other syllables (16 000+
+  // conflicts in V3 alone).  A trie lets toRPA() walk codepoint-by-codepoint,
+  // always remembering the longest complete match so far, and emit the correct
+  // syllable even when two syllables are adjacent without a space.
+
+  function _buildPahawhTrie(map) {
+    const root = { c: new Map() };           // c = children
+    for (const [pahawh, rpa] of map) {
+      let node = root;
+      for (const ch of pahawh) {              // for...of handles SMP codepoints
+        if (!node.c.has(ch)) node.c.set(ch, { c: new Map() });
+        node = node.c.get(ch);
+      }
+      node.v = rpa;                           // v = value (RPA string)
+    }
+    return root;
+  }
+
+  const phTrie  = _buildPahawhTrie(phMap);
+  const phTrie2 = _buildPahawhTrie(phMap2);
+
   // Shared data
 
   const l2p      = new Map(SPECIAL_LATIN.map((c, i)  => [c, SPECIAL_PAHAWH[i]]));
@@ -301,18 +324,36 @@ const PahawhConverter = (() => {
    * Returns an array of syllables if fully decomposable, or null if not.
    *
    * Guards against false positives (English words that coincidentally split):
-   *   1. Minimum word length of 5 characters
+   *   1. Minimum word length of 4 characters
    *   2. Every split part must have a Hmong consonant onset (no bare vowels)
+   *   3. For short words (4 chars), at least one part must contain a
+   *      multi-character consonant cluster (ts, ph, ny, …) — a strong
+   *      signal the word is Hmong, not English.
    *
    * Example: "dabtsi" → ["dab", "tsi"]
    *          "hello"  → null (no valid split)
-   *          "yea"    → null (too short, and "a" has no consonant onset)
+   *          "more"   → null ("mo"+"re" has no multi-char onset)
    */
+
+  // Set of multi-character consonant onsets (2+ chars) for short-word guard
+  const _MULTI_ONSET_SET = new Set();
+  for (const c of CONSONANTS) {
+    if (c.length >= 2 && c !== "k") _MULTI_ONSET_SET.add(c);
+  }
+
+  function _hasMultiCharOnset(syllable) {
+    const lower = syllable.toLowerCase();
+    for (let len = Math.min(4, lower.length); len >= 2; len--) {
+      if (_MULTI_ONSET_SET.has(lower.slice(0, len))) return true;
+    }
+    return false;
+  }
+
   function _splitCompound(word, map) {
     const lower = word.toLowerCase();
 
-    // Guard: minimum 5 characters to attempt splitting
-    if (lower.length < 5) return null;
+    // Guard: minimum 4 characters to attempt splitting (lowered from 5)
+    if (lower.length < 4) return null;
 
     // Pre-filter: must start with a letter
     if (!/^[a-z]/i.test(lower)) return null;
@@ -350,6 +391,12 @@ const PahawhConverter = (() => {
     for (const part of parts) {
       if (!_hasConsonantOnset(part)) return null;
     }
+
+    // Short-word guard: for 4-character words, require at least one part to
+    // contain a multi-character consonant cluster (ts, ph, ny, …).  This
+    // prevents English words like "more" → ["mo","re"] from splitting while
+    // allowing Hmong-like 4-char compounds that contain distinctive clusters.
+    if (lower.length < 5 && !parts.some(_hasMultiCharOnset)) return null;
 
     // Restore original capitalization on first syllable
     if (word[0] !== word[0].toLowerCase()) {
@@ -396,6 +443,7 @@ const PahawhConverter = (() => {
    * }
    */
   function toPahawh(text, mode = 'plain', version = 3, options = {}) {
+    text = text.normalize('NFC');             // Defensive: normalize input
     const map         = version === 2 ? rpaMap2 : rpaMap;
     const usePahPunct = options.pahawhPunctuation || false;
     const usePahNum   = options.pahawhNumerals    || false;
@@ -435,19 +483,36 @@ const PahawhConverter = (() => {
       if (!line) return "";
       let out = "", word = "";
       const isLastLine = lineIdx === lastLineIdx;
+      let lastPahWord = "";  // track last Pahawh word for inline reduplication
 
       const flushWord = (isLastToken = false) => {
         if (!word) return;
         const key = word.toLowerCase();
+        let pahawh = null;
+
         if (map.has(key)) {
-          out += map.get(key);
+          pahawh = map.get(key);
         } else {
           // Try auto-split on unrecognised tokens
           if (useAutoSplit) {
             const parts = _splitCompound(word, map);
             if (parts) {
               // Convert each split syllable individually
-              out += parts.map(p => map.get(p.toLowerCase()) ?? p).join(" ");
+              const converted = parts.map(p => map.get(p.toLowerCase()) ?? p);
+              if (usePahRedup) {
+                // Apply reduplication inline to each split part
+                for (let si = 0; si < converted.length; si++) {
+                  if (si > 0) out += " ";
+                  if (converted[si] === lastPahWord) {
+                    out += PAH_REDUP;
+                  } else {
+                    out += converted[si];
+                    lastPahWord = converted[si];
+                  }
+                }
+              } else {
+                out += converted.join(" ");
+              }
               word = "";
               return;
             }
@@ -462,6 +527,17 @@ const PahawhConverter = (() => {
           } else {
             out += `<span class="pahawh-err">${word}</span>`;
           }
+          lastPahWord = "";  // reset chain on error token
+          word = "";
+          return;
+        }
+
+        // Successful conversion — apply inline reduplication if enabled
+        if (usePahRedup && pahawh === lastPahWord) {
+          out += PAH_REDUP;
+        } else {
+          out += pahawh;
+          lastPahWord = pahawh;
         }
         word = "";
       };
@@ -493,10 +569,8 @@ const PahawhConverter = (() => {
       return out;
     }).join("\n");
 
-    // Reduplication: collapse consecutive identical words to word + 𖭂
-    if (usePahRedup) {
-      result = _collapseRedup(result);
-    }
+    // Reduplication is now handled inline during conversion (single-pass).
+    // The separate _collapseRedup pass is no longer needed.
 
     // If HTML mode was requested and we built plain first (for redup), now
     // re-scan and wrap any remaining Latin-alphabet passthrough tokens with
@@ -525,57 +599,6 @@ const PahawhConverter = (() => {
     }
 
     return result;
-  }
-
-  /**
-   * Collapse consecutive identical Pahawh words into first word + 𖭂 symbols.
-   * "𖬍𖬰𖬥𖬰 𖬍𖬰𖬥𖬰 𖬍𖬰𖬥𖬰" → "𖬍𖬰𖬥𖬰 𖭂 𖭂"
-   * Punctuation between repetitions is preserved but doesn't break the chain.
-   * "𖬍𖬰𖬥𖬰 𖬍𖬰𖬥𖬰, 𖬍𖬰𖬥𖬰 𖬍𖬰𖬥𖬰" → "𖬍𖬰𖬥𖬰 𖭂, 𖭂 𖭂"
-   */
-  function _collapseRedup(text) {
-    const _isPunctChar = c => pSpecSet.has(c) || PAH_PUNCT_SET.has(c) || c === "." || c === "," || c === "!" || c === "?" || c === ";" || c === ":";
-
-    return text.split("\n").map(line => {
-      // Tokenize: split spaces, words, and punct as separate tokens
-      const tokens = [];
-      let current = "";
-
-      for (const ch of line) {
-        if (ch === " ") {
-          if (current) { tokens.push(current); current = ""; }
-          tokens.push(" ");
-        } else if (_isPunctChar(ch)) {
-          if (current) { tokens.push(current); current = ""; }
-          tokens.push(ch);
-        } else {
-          current += ch;
-        }
-      }
-      if (current) tokens.push(current);
-
-      const isSpace = t => t === " ";
-      const isPunct = t => t.length === 1 && _isPunctChar(t);
-
-      let lastWord = "";
-      const out = [];
-
-      for (const tok of tokens) {
-        if (isSpace(tok) || isPunct(tok)) {
-          out.push(tok);
-          // Punctuation doesn't reset lastWord — chain continues
-        } else {
-          if (tok === lastWord) {
-            out.push(PAH_REDUP);
-          } else {
-            lastWord = tok;
-            out.push(tok);
-          }
-        }
-      }
-
-      return out.join("");
-    }).join("\n");
   }
 
   // Single consonant map (for "Allow single consonants" feature)
@@ -607,38 +630,71 @@ const PahawhConverter = (() => {
    * }
    */
   function toRPA(text, version = 3, options = {}) {
-    const map = version === 2 ? phMap2 : phMap;
+    text = text.normalize('NFC');             // Improvement 1: normalize input
+    const trie = version === 2 ? phTrie2 : phTrie;
     const useSingleCons = options.singleConsonants || false;
     let cap = true;
 
     return text.split("\n").map(line => {
       if (!line) return "";
-      let out = "", word = "";
+      let out = "";
       let lastRpaWord = ""; // track for reduplication expansion
 
-      // Convert line to array of codepoints for lookahead
+      // Convert line to array of codepoints for correct SMP handling
       const chars = [...line];
       let i = 0;
 
-      const flushWord = () => {
-        if (!word) return;
-        const rpa = map.get(word);
-        if (rpa !== undefined) {
-          const formatted = cap ? rpa[0].toUpperCase() + rpa.slice(1) : rpa;
-          out += formatted;
-          lastRpaWord = formatted;
-          cap = false;
-        } else if (useSingleCons && _singleConsMap.has(word)) {
-          // Standalone consonant glyph → consonant + "au"
-          const rpa = _singleConsMap.get(word);
-          const formatted = cap ? rpa[0].toUpperCase() + rpa.slice(1) : rpa;
-          out += formatted;
-          lastRpaWord = formatted;
-          cap = false;
-        } else {
-          out += word;
+      /** Emit an RPA word, applying capitalisation. */
+      const emitRpa = (rpa) => {
+        const formatted = cap ? rpa[0].toUpperCase() + rpa.slice(1) : rpa;
+        out += formatted;
+        lastRpaWord = formatted;
+        cap = false;
+      };
+
+      /**
+       * Attempt a trie-based longest-match scan starting at chars[i].
+       * Returns the number of codepoints consumed, or 0 if no match.
+       */
+      const trySyllable = () => {
+        let node = trie;
+        let bestLen = 0;
+        let bestRpa = null;
+
+        for (let j = i; j < chars.length; j++) {
+          const child = node.c.get(chars[j]);
+          if (!child) break;
+          node = child;
+          if (node.v !== undefined) {
+            bestLen = j - i + 1;
+            bestRpa = node.v;
+          }
         }
-        word = "";
+
+        if (bestRpa) {
+          emitRpa(bestRpa);
+          return bestLen;
+        }
+
+        // Fallback: single-consonant mode
+        if (useSingleCons) {
+          // Try single codepoint as a standalone consonant glyph
+          const single = chars[i];
+          if (_singleConsMap.has(single)) {
+            emitRpa(_singleConsMap.get(single));
+            return 1;
+          }
+          // Try codepoint + next codepoint (consonant + tone mark)
+          if (i + 1 < chars.length) {
+            const pair = single + chars[i + 1];
+            if (_singleConsMap.has(pair)) {
+              emitRpa(_singleConsMap.get(pair));
+              return 2;
+            }
+          }
+        }
+
+        return 0;
       };
 
       while (i < chars.length) {
@@ -647,7 +703,6 @@ const PahawhConverter = (() => {
 
         // Check for reduplication symbol 𖭂
         if (ch === PAH_REDUP) {
-          flushWord();
           if (lastRpaWord) {
             out += lastRpaWord;
           }
@@ -659,12 +714,7 @@ const PahawhConverter = (() => {
         if (i + 1 < chars.length) {
           const pair = ch + chars[i + 1];
           if (PAH_MEASURE_COMPOUNDS.has(pair)) {
-            flushWord();
-            const rpa = PAH_MEASURE_COMPOUNDS.get(pair);
-            const formatted = cap ? rpa[0].toUpperCase() + rpa.slice(1) : rpa;
-            out += formatted;
-            lastRpaWord = formatted;
-            cap = false;
+            emitRpa(PAH_MEASURE_COMPOUNDS.get(pair));
             i += 2;
             continue;
           }
@@ -672,20 +722,11 @@ const PahawhConverter = (() => {
 
         // Check for Pahawh digits
         if (PAH_DIGIT_SET.has(ch)) {
-          flushWord();
-          // Check if this digit is adjacent to a measurement symbol (then it's part
-          // of a number, not "cua"). Since compounds were already handled above,
-          // standalone 𖭐 next to other digits = digit 0.
-          // Check context: if previous or next char is also a Pahawh digit, treat as number
           const prevIsDigit = i > 0 && PAH_DIGIT_SET.has(chars[i - 1]);
           const nextIsDigit = i + 1 < chars.length && PAH_DIGIT_SET.has(chars[i + 1]);
 
           if (ch === "𖭐" && !prevIsDigit && !nextIsDigit && !PAH_MEASURE_SET.has(chars[i + 1] ?? "")) {
-            // Standalone 𖭐 not in a number sequence = "cua"
-            const formatted = cap ? "Cua" : "cua";
-            out += formatted;
-            lastRpaWord = formatted;
-            cap = false;
+            emitRpa("cua");
           } else {
             out += PAH_DIGIT_TO_ASCII.get(ch) ?? ch;
           }
@@ -695,19 +736,13 @@ const PahawhConverter = (() => {
 
         // Check for measurement singles (only if not already handled as digit)
         if (PAH_MEASURE_SINGLES.has(ch) && ch !== "𖭐") {
-          flushWord();
-          const rpa = PAH_MEASURE_SINGLES.get(ch);
-          const formatted = cap ? rpa[0].toUpperCase() + rpa.slice(1) : rpa;
-          out += formatted;
-          lastRpaWord = formatted;
-          cap = false;
+          emitRpa(PAH_MEASURE_SINGLES.get(ch));
           i++;
           continue;
         }
 
         // Check for Pahawh punctuation
         if (PAH_PUNCT_SET.has(ch)) {
-          flushWord();
           const eng = PAH_PUNCT_TO_ENG.get(ch);
           out += eng;
           if (eng === "!" || eng === "?") cap = true;
@@ -717,19 +752,29 @@ const PahawhConverter = (() => {
 
         // Space or generic special
         if (ch === " " || pSpecSet.has(ch)) {
-          flushWord();
           out += ch === " " ? " " : (p2l.get(ch) ?? ch);
           if (ch === "!" || ch === "?" || ch === ".") cap = true;
-        } else if (code >= 48 && code <= 57) {
-          flushWord();
-          out += ch;
-        } else {
-          // Pahawh syllable character — accumulate
-          word += ch;
+          i++;
+          continue;
         }
-        i++;
+
+        // ASCII digit passthrough
+        if (code >= 48 && code <= 57) {
+          out += ch;
+          i++;
+          continue;
+        }
+
+        // Pahawh syllable character — try trie-based longest match
+        const consumed = trySyllable();
+        if (consumed > 0) {
+          i += consumed;
+        } else {
+          // Unrecognised codepoint — pass through
+          out += ch;
+          i++;
+        }
       }
-      flushWord();
       return out;
     }).join("\n");
   }
