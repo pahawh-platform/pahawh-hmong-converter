@@ -1,4 +1,4 @@
-# Pahawh Hmong Converter
+# pahawh-hmong-converter
 
 A fast, dependency-free JavaScript library for converting Hmong RPA (Romanized Popular Alphabet) to Pahawh Hmong Unicode script — and back. Supports both **Version 2** (Second Stage Reduced) and **Version 3** (Third Stage Reduced) of Pahawh Hmong. The first open-source Hmong RPA ↔ Pahawh converter on the web.
 
@@ -7,8 +7,7 @@ A fast, dependency-free JavaScript library for converting Hmong RPA (Romanized P
 <!-- becomes → 𖬒𖬮𖬵 𖬍𖬰𖬥𖬰 𖬏𖬤𖬵 𖬏𖬲𖬞𖬰 -->
 ```
 
-**[Live Demo →](https://pahawh-platform.github.io/pahawh-hmong-converter/)** &nbsp;&nbsp;&nbsp;
-**[CodePen Demo →](https://codepen.io/Pahawh-Platform/pen/raMGbvd)**
+**[Live Demo →](https://pahawh-platform.github.io/pahawh-hmong-converter/demo.html)**
 
 ---
 
@@ -25,7 +24,10 @@ A fast, dependency-free JavaScript library for converting Hmong RPA (Romanized P
 - Programmatic API for dynamic content and single-page apps
 - MutationObserver mode for content injected after page load
 - Preserves `<br>` line breaks and HTML formatting in both directions
-- O(1) Map lookups — 6,832 syllables (14 vowels × 8 tones × 61 consonant slots)
+- O(1) Map lookups for RPA → Pahawh; trie-based longest-match scanning for Pahawh → RPA — handles adjacent syllables without spaces
+- Unicode NFC normalisation on input — no need to pre-normalise pasted text
+- Automatic compound-word splitting — `dabtsi` → `dab tsi` with false-positive guards
+- Escape blocks — wrap text in `/* ... */` to pass it through unconverted
 - Zero dependencies, works in any modern browser
 
 ---
@@ -42,7 +44,7 @@ Add to your `<head>`. Load the Pahawh font first so it's ready when the library 
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Pahawh+Hmong&display=swap" rel="stylesheet">
 
 <!-- Library -->
-<script src="https://cdn.jsdelivr.net/gh/pahawh-platform/pahawh-hmong-converter@v2.0.0/pahawh-converter.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/pahawh-platform/pahawh-hmong-converter@v2.1.0/pahawh-converter.js"></script>
 ```
 
 ### Download
@@ -209,6 +211,19 @@ Pahawh has logographic symbols for counting and measurement words. These are con
 
 ---
 
+## Escape blocks
+
+Wrap any text in `/* ... */` to pass it through unconverted. This is useful for embedding English phrases, proper nouns, or any content that should not be interpreted as RPA.
+
+```js
+PahawhConverter.toPahawh('nyob /*hello world*/ zoo');
+// → '𖬒𖬮𖬵 hello world 𖬍𖬰𖬥𖬰'
+```
+
+In HTML mode, escape block content is wrapped in `<span class="pahawh-orphan">` so you can style it separately.
+
+---
+
 ## JavaScript API
 
 All methods are available on the global `PahawhConverter` object.
@@ -249,10 +264,13 @@ PahawhConverter.toPahawh('zoo zoo!', 'plain', 3, {
 | `pahawhPunctuation` | boolean | `false` | Convert `? ! , & % + - × ÷` to Pahawh symbols |
 | `pahawhNumerals` | boolean | `false` | Convert digits to Pahawh numerals |
 | `pahawhRedup` | boolean | `false` | Collapse repeated words using 𖭂 |
+| `autoSplit` | boolean | `true` | Automatically split compound words (e.g. `dabtsi` → `dab tsi`) before conversion |
 
-### `PahawhConverter.toRPA(text, version?)`
+### `PahawhConverter.toRPA(text, version?, options?)`
 
 Convert a Pahawh unicode string back to RPA. Always converts Pahawh punctuation, numerals, measurement symbols, and reduplication back to their English/RPA equivalents. Capitalises after sentence boundaries (`. ! ?`).
+
+Uses trie-based longest-match scanning, so adjacent Pahawh syllables are correctly segmented even without spaces between them.
 
 ```js
 // Stage 3 (default)
@@ -261,6 +279,9 @@ PahawhConverter.toRPA('𖬒𖬮𖬵 𖬍𖬰𖬥𖬰 𖬏𖬤𖬵 𖬏𖬲𖬞�
 
 // Stage 2
 PahawhConverter.toRPA(pahawhV2Text, 2);
+
+// With single-consonant mode
+PahawhConverter.toRPA(pahawhText, 3, { singleConsonants: true });
 ```
 
 **Parameters:**
@@ -269,6 +290,13 @@ PahawhConverter.toRPA(pahawhV2Text, 2);
 |---|---|---|---|
 | `text` | string | — | Pahawh unicode text to convert |
 | `version` | number | `3` | Which Pahawh version to interpret the input as |
+| `options` | object | `{}` | See options below |
+
+**Options:**
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `singleConsonants` | boolean | `false` | Treat standalone consonant glyphs as consonant + "au" |
 
 ### `PahawhConverter.toggle(el)`
 
@@ -308,10 +336,26 @@ PahawhConverter.init({ root: document.getElementById('content') });
 | `observe` | boolean | `false` | Watch for dynamically added elements via MutationObserver |
 | `root` | Element | `document` | Root element to scan |
 
+### `PahawhConverter.splitCompounds(text, version?)`
+
+Utility to detect compound words in an RPA string and return their split forms. Useful for previewing which words will be auto-split during conversion.
+
+```js
+PahawhConverter.splitCompounds('Kuv tsis paub dabtsi');
+// → { "dabtsi": "dab tsi" }
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `text` | string | — | RPA text to scan for compounds |
+| `version` | number | `3` | Which Pahawh version's syllable map to use |
+
 ### `PahawhConverter.version`
 
 ```js
-PahawhConverter.version; // → '2.0.0'
+PahawhConverter.version; // → '2.1.0'
 ```
 
 ---
