@@ -7,7 +7,7 @@ A fast, dependency-free JavaScript library for converting Hmong RPA (Romanized P
 <!-- becomes → 𖬒𖬮𖬵 𖬍𖬰𖬥𖬰 𖬏𖬤𖬵 𖬏𖬲𖬞𖬰 -->
 ```
 
-**[Live Demo →](https://pahawh-platform.github.io/pahawh-hmong-converter/)**
+**[Live Demo →](https://pahawh-platform.github.io/pahawh-hmong-converter/demo.html)**
 
 ---
 
@@ -44,7 +44,7 @@ Add to your `<head>`. Load the Pahawh font first so it's ready when the library 
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Pahawh+Hmong&display=swap" rel="stylesheet">
 
 <!-- Library -->
-<script src="https://cdn.jsdelivr.net/gh/pahawh-platform/pahawh-hmong-converter@v2.1.0/pahawh-converter.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/pahawh-platform/pahawh-hmong-converter@v2.2.1/pahawh-converter.js"></script>
 ```
 
 ### Download
@@ -352,10 +352,44 @@ PahawhConverter.splitCompounds('Kuv tsis paub dabtsi');
 | `text` | string | — | RPA text to scan for compounds |
 | `version` | number | `3` | Which Pahawh version's syllable map to use |
 
+### Structural coordinates (v2.2+)
+
+Every Pahawh syllable sits at a **(consonant, vowel, tone)** position in the script's underlying 60 × 14 × 8 grid. These helpers expose that structure for teaching tools, linguistic analysis, and custom tooling. Internal conversion still uses the fast map-based lookup — the coordinate API is a parallel surface.
+
+```js
+// Parse an RPA syllable into grid coordinates
+PahawhConverter.encodeSyllable('ntxhais');
+// → { ci: 35, vi: 5, ti: 6, consonant: 'ntxh', vowel: 'ai',
+//     tone: 's', bareVowel: false }
+
+PahawhConverter.encodeSyllable('eeb');   // bareVowel: true  — no consonant typed
+PahawhConverter.encodeSyllable('keeb');  // bareVowel: false — explicit "k" typed
+
+// Build an RPA string from coordinates
+PahawhConverter.decodeSyllable({ ci: 35, vi: 5, ti: 6 });                      // 'ntxhais'
+PahawhConverter.decodeSyllable({ ci: 28, vi: 0, ti: 0 });                      // 'eeb'
+PahawhConverter.decodeSyllable({ ci: 28, vi: 0, ti: 0, bareVowel: false });    // 'keeb'
+
+// Pahawh glyphs for a coordinate (matches toPahawh output)
+PahawhConverter.syllableToPahawh({ ci: 35, vi: 5, ti: 6 }, 3);
+
+// Teaching position codes (row + column, 1-based)
+PahawhConverter.position({ vi: 4, ti: 2 });   // '53'
+PahawhConverter.fromPosition('53');           // { vi: 4, ti: 2 }
+
+// Frozen reference data
+PahawhConverter.CONSONANTS;   // 60 RPA consonants
+PahawhConverter.VOWELS;       // 14 vowel roots
+PahawhConverter.TONES;        // 8 tone suffixes
+PahawhConverter.K_INDEX;      // 28 — the null-consonant "k" slot
+```
+
+The `bareVowel` flag matters: `eeb` and `keeb` share the same grid coordinate but produce different Pahawh (`𖬀𖬮𖬰` with the null-onset marker vs `𖬀` without), because Pahawh's inherent consonant is /k/ — writing no consonant glyph *means* k.
+
 ### `PahawhConverter.version`
 
 ```js
-PahawhConverter.version; // → '2.1.0'
+PahawhConverter.version; // → '2.2.1'
 ```
 
 ---
@@ -382,6 +416,23 @@ el.className   = 'to-pahawh';
 el.textContent = 'Nyob Zoo';
 container.appendChild(el); // converted automatically
 ```
+
+---
+
+## Changelog
+
+### v2.2.1
+- **Corrected three RPA consonant spellings** to standard orthography: `nphl` → **`nplh`**, `nyh` → **`hny`**, `hnl` → **`hml`** (indices 44, 52, 55). Pahawh glyph output is unchanged for every valid spelling — only the Latin keys were wrong. Words like *nplhaib*, *hnyav*, and *hmlos* now convert; the old misspellings were never valid RPA and now pass through unconverted.
+
+### v2.2.0
+- Added the **structural coordinate API**: `encodeSyllable`, `decodeSyllable`, `syllableToPahawh`, `position`, `fromPosition`, plus frozen `CONSONANTS`/`VOWELS`/`TONES` reference data and `K_INDEX`. Purely additive — no conversion behavior changes.
+
+### v2.1.0
+- Trie-based longest-match `toRPA` — fixes adjacent syllables without spaces, ~2× faster.
+- Single-pass reduplication, smarter compound-split guard, NFC input normalization.
+
+### v2.0.0
+- Map-based rewrite of the original parallel-array converter.
 
 ---
 
