@@ -13,7 +13,7 @@
  * @@@@@@@@@@@@@@@@@@@@@@@@@@                                                                             
  *
  * 
- * pahawh-converter.js v2.2.0
+ * pahawh-converter.js v2.2.1
  * Hmong RPA ↔ Pahawh Hmong Unicode converter
  * Supports Pahawh Phiaj 2 (Version 2 - Second Stage Reduced) and Phiaj 3 (Version 3 - Third Stage Reduced)
  *
@@ -74,7 +74,7 @@
 
 const PahawhConverter = (() => {
 
-  const VERSION = '2.2.0';
+  const VERSION = '2.2.1';
 
   // Conversion data (shared between Phiaj 2 (V2) and Phiaj 3 (V3))
 
@@ -86,7 +86,7 @@ const PahawhConverter = (() => {
     "m","txh","q","nts","ts","ph","y","nc","s","h","th","pl","l","d","dh",
     "c","ntsh","tx","v","nr","f","plh","tsh","p","ch","xy","t","x","k","ny",
     "hn","kh","nt","hl","z","ntxh","nk","ntx","rh","n","nq","nqh","r","nph",
-    "nphl","nth","npl","nkh","nch","nrh","np","qh","nyh","hm","ml","hnl","g",
+    "nplh","nth","npl","nkh","nch","nrh","np","qh","hny","hm","ml","hml","g",
     "w","ndl","ndlh"
   ];
   const K_INDEX = 28;
@@ -504,7 +504,7 @@ const PahawhConverter = (() => {
   const p2l      = new Map(SPECIAL_PAHAWH.map((c, i) => [c, SPECIAL_LATIN[i]]));
   const pSpecSet = new Set(SPECIAL_PAHAWH);
 
-  const HMONG_RPA_RE = /^(txh|ntsh|ntxh|nphl|ndlh|ndl|nts|nth|npl|nkh|nch|nrh|ntx|nph|nqh|nyh|hnl|ts|ph|nc|dh|tx|nr|plh|tsh|ch|xy|ny|hn|kh|nt|hl|nk|rh|nq|np|qh|hm|ml|pl|nh)[a-z]*$/i;
+  const HMONG_RPA_RE = /^(txh|ntsh|ntxh|nplh|ndlh|ndl|nts|nth|npl|nkh|nch|nrh|ntx|nph|nqh|hny|hml|ts|ph|nc|dh|tx|nr|plh|tsh|ch|xy|ny|hn|kh|nt|hl|nk|rh|nq|np|qh|hm|ml|pl|nh)[a-z]*$/i;
 
   // Compound word auto-split
 
@@ -524,7 +524,7 @@ const PahawhConverter = (() => {
    */
   function _hasConsonantOnset(syllable) {
     const lower = syllable.toLowerCase();
-    // Try matching longest consonant cluster first (up to 4 chars: "nphl", "ndlh", "ntxh", "ntsh")
+    // Try matching longest consonant cluster first (up to 4 chars: "nplh", "ndlh", "ntxh", "ntsh")
     for (let len = Math.min(4, lower.length); len >= 1; len--) {
       if (_ONSET_SET.has(lower.slice(0, len))) return true;
     }
