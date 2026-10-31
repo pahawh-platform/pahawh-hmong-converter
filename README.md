@@ -24,9 +24,10 @@ A fast, dependency-free JavaScript library for converting Hmong RPA (Romanized P
 - Programmatic API for dynamic content and single-page apps
 - MutationObserver mode for content injected after page load
 - Preserves `<br>` line breaks and HTML formatting in both directions
-- O(1) Map lookups for RPA → Pahawh; trie-based longest-match scanning for Pahawh → RPA — handles adjacent syllables without spaces
+- Fast table lookups in both directions; longest-match scanning for Pahawh → RPA handles adjacent syllables without spaces
 - Unicode NFC normalisation on input — no need to pre-normalise pasted text
-- Automatic compound-word splitting — `dabtsi` → `dab tsi` with false-positive guards
+- Automatic compound-word splitting — `dabtsi` → `dab tsi`, `txojkev` → `txoj kev` — scored so English words like `notes` and `phone` are left alone
+- Accepts both common spellings of three consonants: `nphl`/`nplh`, `nyh`/`hny`, `hml`/`hnl`
 - Escape blocks — wrap text in `/* ... */` to pass it through unconverted
 - Zero dependencies, works in any modern browser
 
@@ -44,7 +45,7 @@ Add to your `<head>`. Load the Pahawh font first so it's ready when the library 
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Pahawh+Hmong&display=swap" rel="stylesheet">
 
 <!-- Library -->
-<script src="https://cdn.jsdelivr.net/gh/pahawh-platform/pahawh-hmong-converter@v2.2.1/pahawh-converter.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/pahawh-platform/pahawh-hmong-converter@v2.2.2/pahawh-converter.js"></script>
 ```
 
 ### Download
@@ -152,9 +153,28 @@ The `aa` vowel is treated as a distinct 14th vowel in both V2 and V3, with its o
 
 ---
 
+### Consonant spellings
+
+Different groups of writers spell three consonants differently. Both spellings are accepted and produce the same Pahawh. Converting back to RPA always uses the first spelling in the table.
+
+| Output spelling | Also accepted |
+|---|---|
+| `nphl` | `nplh` |
+| `nyh` | `hny` |
+| `hml` | `hnl` |
+
+```js
+PahawhConverter.toPahawh('hnyav') === PahawhConverter.toPahawh('nyhav');  // true
+PahawhConverter.toRPA(PahawhConverter.toPahawh('hnyav'));                 // → 'Nyhav'
+```
+
+The pairs are available as `PahawhConverter.CONSONANT_ALIASES`.
+
+---
+
 ## Pahawh Version 2 vs Version 3
 
-The library supports both major orthographic stages of Pahawh Hmong:
+The library supports two versions of Pahawh Hmong:
 
 - **Version 3** (Third Stage Reduced) — default. Systematic tone-to-diacritic mapping.
 - **Version 2** (Second Stage Reduced) — irregular tone assignments per vowel.
@@ -162,7 +182,7 @@ The library supports both major orthographic stages of Pahawh Hmong:
 Both versions use the same Unicode codepoints (U+16B00–U+16B8F), the same 14 vowels, and the same consonant mappings. The difference is entirely in how tone diacritics are assigned to vowel rimes.
 
 Key V2 differences:
-- The `-d` RPA tone (not phonemic) maps to `-v` output
+- Stage 2 writes seven tones. The `-d` tone is written the same as `-v` (`kood` and `koov` both give 𖬍), so converting back to RPA gives the `-v` spelling
 - Each vowel has its own irregular diacritic pattern (no formula — full lookup table)
 
 ---
@@ -208,6 +228,18 @@ Pahawh has logographic symbols for counting and measurement words. These are con
 | 𖭞 | root | 𖭠𖭐 | kem |
 | 𖭟 | neev | 𖭡 | tas |
 | 𖭠 | ruav | | |
+
+---
+
+## Compound words
+
+Hmong is often written with syllables run together (`dabtsi`, `txojkev`). When a word isn't a single syllable, the converter looks for the most Hmong-like way to split it into valid syllables and converts each one: `dabtsi` → `dab tsi`, `lostebchaws` → `los teb chaws`. Turn this off with the `autoSplit: false` option.
+
+Every possible split is scored. Multi-letter consonants (`ts`, `ny`, `ntx`, …) and tone letters count in its favour; bare vowels, toneless syllables and English endings such as a final `-e` or `-es` count against it. A word is split only if its best score is high enough and at least one syllable ends in a tone letter. That is why `notes`, `phone` and `hello` stay as they are.
+
+A few compounds are spelled exactly like possible English words, so the converter keeps a short list of known compounds that are always split: `licas`, `noqab`, `ibyam`, `uarog`, `uake`, `kotaw`.
+
+The scoring isn't perfect: English plurals ending in `-as` or `-os` (`photos`, `pianos`) do split, because their syllables are valid toned Hmong. Wrap such words in an escape block to keep them: `/*photos*/`.
 
 ---
 
@@ -264,7 +296,7 @@ PahawhConverter.toPahawh('zoo zoo!', 'plain', 3, {
 | `pahawhPunctuation` | boolean | `false` | Convert `? ! , & % + - × ÷` to Pahawh symbols |
 | `pahawhNumerals` | boolean | `false` | Convert digits to Pahawh numerals |
 | `pahawhRedup` | boolean | `false` | Collapse repeated words using 𖭂 |
-| `autoSplit` | boolean | `true` | Automatically split compound words (e.g. `dabtsi` → `dab tsi`) before conversion |
+| `autoSplit` | boolean | `true` | Split run-together compound words into syllables (e.g. `dabtsi` → `dab tsi`) — see [Compound words](#compound-words) |
 
 ### `PahawhConverter.toRPA(text, version?, options?)`
 
@@ -275,7 +307,7 @@ Uses trie-based longest-match scanning, so adjacent Pahawh syllables are correct
 ```js
 // Stage 3 (default)
 PahawhConverter.toRPA('𖬒𖬮𖬵 𖬍𖬰𖬥𖬰 𖬏𖬤𖬵 𖬏𖬲𖬞𖬰');
-// → 'Nyob Zoo sawv daws'
+// → 'Nyob zoo sawv daws'
 
 // Stage 2
 PahawhConverter.toRPA(pahawhV2Text, 2);
@@ -296,7 +328,7 @@ PahawhConverter.toRPA(pahawhText, 3, { singleConsonants: true });
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `singleConsonants` | boolean | `false` | Treat standalone consonant glyphs as consonant + "au" |
+| `singleConsonants` | boolean | `false` | Read a consonant glyph standing alone as consonant + "au" (e.g. 𖬥𖬰 → `zau`) |
 
 ### `PahawhConverter.toggle(el)`
 
@@ -364,6 +396,7 @@ PahawhConverter.encodeSyllable('ntxhais');
 
 PahawhConverter.encodeSyllable('eeb');   // bareVowel: true  — no consonant typed
 PahawhConverter.encodeSyllable('keeb');  // bareVowel: false — explicit "k" typed
+PahawhConverter.encodeSyllable('hnyav').consonant;  // 'nyh' — either spelling, default returned
 
 // Build an RPA string from coordinates
 PahawhConverter.decodeSyllable({ ci: 35, vi: 5, ti: 6 });                      // 'ntxhais'
@@ -382,6 +415,7 @@ PahawhConverter.CONSONANTS;   // 60 RPA consonants
 PahawhConverter.VOWELS;       // 14 vowel roots
 PahawhConverter.TONES;        // 8 tone suffixes
 PahawhConverter.K_INDEX;      // 28 — the null-consonant "k" slot
+PahawhConverter.CONSONANT_ALIASES;  // { nplh: 'nphl', hny: 'nyh', hnl: 'hml' }
 ```
 
 The `bareVowel` flag matters: `eeb` and `keeb` share the same grid coordinate but produce different Pahawh (`𖬀𖬮𖬰` with the null-onset marker vs `𖬀` without), because Pahawh's inherent consonant is /k/ — writing no consonant glyph *means* k.
@@ -389,7 +423,7 @@ The `bareVowel` flag matters: `eeb` and `keeb` share the same grid coordinate bu
 ### `PahawhConverter.version`
 
 ```js
-PahawhConverter.version; // → '2.2.1'
+PahawhConverter.version; // → '2.2.2'
 ```
 
 ---
@@ -421,8 +455,15 @@ container.appendChild(el); // converted automatically
 
 ## Changelog
 
+### v2.2.2
+- **Both consonant spellings accepted:** `nphl`/`nplh`, `nyh`/`hny` and `hml`/`hnl` convert to the same Pahawh. Converting back to RPA now gives `nphl`, `nyh` and `hml` (2.2.1 gave `nplh` and `hny`). The pairs are exported as `CONSONANT_ALIASES`.
+- **Stage 2 `oo` vowel corrected:** the mid-tone and `-v` glyphs were swapped. `koo` is now 𖬍𖬰 and `koov` is 𖬍 (`kood` follows `-v`).
+- **Better compound splitting:** a scored splitter replaces the rule-based one. It splits more real compounds (`txojkev`, `koomhaum`, `ibtxwm`, `uake`) and leaves more English words alone (`notes` and `phone` no longer split), with a built-in list of known compounds. See [Compound words](#compound-words).
+- **Single-consonant mode fixed:** with `singleConsonants`, a consonant glyph and its diacritic are read as one consonant (𖬥𖬰 → `zau`; previously `hlau` plus a stray mark).
+- **Faster conversion:** compared with 2.2.1 in Chromium, RPA → Pahawh is about 1.6× faster on plain Hmong text and about 2.3× faster on text with run-together words or English; Pahawh → RPA is about 1.2× faster. Load time is about the same.
+
 ### v2.2.1
-- **Corrected three RPA consonant spellings** to standard orthography: `nphl` → **`nplh`**, `nyh` → **`hny`**, `hnl` → **`hml`** (indices 44, 52, 55). Pahawh glyph output is unchanged for every valid spelling — only the Latin keys were wrong. Words like *nplhaib*, *hnyav*, and *hmlos* now convert; the old misspellings were never valid RPA and now pass through unconverted.
+- **Changed three RPA consonant spellings:** `nphl` → `nplh`, `nyh` → `hny`, `hnl` → `hml` (indices 44, 52, 55). Pahawh glyph output was unchanged; text using the earlier spellings stopped converting. (2.2.2 accepts both spellings again.)
 
 ### v2.2.0
 - Added the **structural coordinate API**: `encodeSyllable`, `decodeSyllable`, `syllableToPahawh`, `position`, `fromPosition`, plus frozen `CONSONANTS`/`VOWELS`/`TONES` reference data and `K_INDEX`. Purely additive — no conversion behavior changes.
@@ -457,7 +498,7 @@ The library applies `'Noto Sans Pahawh Hmong', sans-serif` to converted elements
 
 Pahawh Hmong (𖬖𖬲𖬝𖬵 𖬄𖬲𖬟 𖬌𖬣𖬵) is an indigenous writing system created by Shong Lue Yang in the 1950s for the Hmong language. It is encoded in Unicode at code points U+16B00–U+16B8F. The script reads left to right and encodes syllables differently from the Latin-based RPA — vowels are written before consonants in Pahawh, which is the reverse of RPA.
 
-The writing system has four stages of development. The Second Stage Reduced Version and Third Stage Reduced Version are both in active use today. This library supports both.
+The Second Stage Reduced Version and Third Stage Reduced Version are both in active use today. This library supports both.
 
 ---
 
