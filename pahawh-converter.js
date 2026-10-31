@@ -13,7 +13,7 @@
  * @@@@@@@@@@@@@@@@@@@@@@@@@@                                                                             
  *
  * 
- * pahawh-converter.js v2.2.1
+ * pahawh-converter.js v2.2.2
  * Hmong RPA ↔ Pahawh Hmong Unicode converter
  * Supports Pahawh Phiaj 2 (Version 2 - Second Stage Reduced) and Phiaj 3 (Version 3 - Third Stage Reduced)
  *
@@ -21,6 +21,18 @@
  * 
  * 2026 version edit with Claude.AI. Claude was used for code refactoring and enhance the storage structure
  * from parallel arrays to key-value maps.
+ *
+ * v2.2.2 changes:
+ *   - scored compound auto-split with a known-compounds override list
+ *   - both spellings accepted for nphl/nplh, nyh/hny and hml/hnl
+ *     (output always uses nphl, nyh, hml)
+ *   - Stage 2 "oo" vowel: mid tone and -v glyphs corrected
+ *   - toRPA single-consonant mode reads glyph + diacritic pairs correctly
+ *   - faster conversion with identical output: a leaner compound splitter
+ *     that splits each distinct word once per conversion, a flat-table
+ *     Pahawh → RPA lookup (faster, smaller, quicker to build), and a
+ *     whole-word lookup table for RPA → Pahawh once a page has converted
+ *     100,000 characters
  *
  * v2.2.0 adds structural coordinate access: every Pahawh syllable sits at a
  * (consonant, vowel, tone) position in the script's underlying 60×14×8 grid,
@@ -46,9 +58,10 @@
  *   PahawhConverter.toPahawh(text, mode?, version?, options?)
  *     mode:    'plain' (default) or 'html'
  *     version: 2 or 3 (default 3)
- *     options: { pahawhPunctuation, pahawhNumerals, pahawhRedup }
+ *     options: { pahawhPunctuation, pahawhNumerals, pahawhRedup, autoSplit }
  *
- *   PahawhConverter.toRPA(text, version?)
+ *   PahawhConverter.toRPA(text, version?, options?)
+ *     options: { singleConsonants }
  *     Always converts Pahawh punctuation/numerals/symbols → English equivalents.
  *     Always expands reduplication symbol 𖭂.
  *
@@ -61,11 +74,12 @@
  *   PahawhConverter.VOWELS                     frozen list of 14 RPA vowel roots
  *   PahawhConverter.TONES                      frozen list of 8 RPA tone suffixes
  *   PahawhConverter.K_INDEX                    index of the null-consonant slot
+ *   PahawhConverter.CONSONANT_ALIASES          alternate input spellings → default
  *
  *   PahawhConverter.toggle(el)              flip a .toggle-pahawh element
  *   PahawhConverter.convert(el)             manually process one element
  *   PahawhConverter.init(options?)          re-scan; options: { observe, root }
- *   PahawhConverter.version                 '2.2.0'
+ *   PahawhConverter.version                 '2.2.2'
  *
  * FONT
  *   Applies 'Noto Sans Pahawh Hmong' via font-display swap.
@@ -74,7 +88,7 @@
 
 const PahawhConverter = (() => {
 
-  const VERSION = '2.2.1';
+  const VERSION = '2.2.2';
 
   // Conversion data (shared between Phiaj 2 (V2) and Phiaj 3 (V3))
 
@@ -86,10 +100,18 @@ const PahawhConverter = (() => {
     "m","txh","q","nts","ts","ph","y","nc","s","h","th","pl","l","d","dh",
     "c","ntsh","tx","v","nr","f","plh","tsh","p","ch","xy","t","x","k","ny",
     "hn","kh","nt","hl","z","ntxh","nk","ntx","rh","n","nq","nqh","r","nph",
-    "nplh","nth","npl","nkh","nch","nrh","np","qh","hny","hm","ml","hml","g",
+    "nphl","nth","npl","nkh","nch","nrh","np","qh","nyh","hm","ml","hml","g",
     "w","ndl","ndlh"
   ];
   const K_INDEX = 28;
+
+  // Alternate spellings of three consonants. Different groups of users write
+  // these clusters differently, so both forms are accepted as INPUT and
+  // convert to the same Pahawh glyphs. OUTPUT (toRPA, the coordinate API and
+  // the CONSONANTS list) always uses the default spelling in CONSONANTS above.
+  //   alternate → default
+  const CONSONANT_ALIASES = { "nplh": "nphl", "hny": "nyh", "hnl": "hml" };
+  const _ALIAS_LIST = Object.keys(CONSONANT_ALIASES);
 
   // Pahawh glyph data
 
@@ -175,7 +197,7 @@ const PahawhConverter = (() => {
     "u":  [ [6,"𖬰"],  [6,""],    [6,"𖬶"],  [6,"𖬲"],  [7,""],    [7,"𖬰"],  [7,"𖬲"]  ],
     "e":  [ [8,"𖬰"],  [8,""],    [8,"𖬲"],  [9,""],    [9,"𖬰"],  [9,"𖬲"],  [9,"𖬶"]  ],
     "ai": [ [10,"𖬰"], [10,""],   [10,"𖬶"], [10,"𖬲"], [11,""],   [11,"𖬰"], [11,"𖬲"] ],
-    "oo": [ [12,""],   [12,"𖬰"], [12,"𖬲"], [13,"𖬰"], [13,""],   [13,"𖬲"], [13,"𖬶"] ],
+    "oo": [ [12,""],   [12,"𖬰"], [12,"𖬲"], [13,""],   [13,"𖬰"], [13,"𖬲"], [13,"𖬶"] ],
     "aw": [ [14,""],   [14,"𖬰"], [14,"𖬲"], [14,"𖬶"], [15,""],   [15,"𖬰"], [15,"𖬲"] ],
     "ua": [ [16,"𖬶"], [16,""],   [16,"𖬰"], [16,"𖬲"], [17,""],   [17,"𖬲"], [17,"𖬶"] ],
     "o":  [ [18,"𖬰"], [18,""],   [18,"𖬲"], [18,"𖬶"], [19,"𖬰"], [19,"𖬲"], [19,""]   ],
@@ -250,6 +272,17 @@ const PahawhConverter = (() => {
     }
   })();
 
+  // Alternate-spelling keys: input-only entries pointing at the same glyphs
+  // as the default spelling. The reverse maps (phMap / phMap2) are never
+  // touched, so Pahawh → RPA always emits the default spelling.
+  function _addAliasKeys(map, rimes) {
+    for (const alt of _ALIAS_LIST) {
+      const def = CONSONANT_ALIASES[alt];
+      for (const r of rimes) map.set((alt + r).toLowerCase(), map.get((def + r).toLowerCase()));
+    }
+  }
+  _addAliasKeys(rpaMap, latinLib1);
+
   // Phiaj 2 (V2) lookup maps — built lazily on first V2 use.
   // Most deployments only ever use V3, so deferring this halves the
   // map-construction work done at page load.
@@ -290,11 +323,58 @@ const PahawhConverter = (() => {
       rpaMap2.set(v2Lib1[j].toLowerCase(), v2PahLib[j] + pahawhLib02[K_INDEX]);
       phMap2.set(v2PahLib[j] + pahawhLib02[K_INDEX], v2Lib1[j]);
     }
+    _addAliasKeys(rpaMap2, v2Lib1);
   }
 
   function _getRpaMap(version) {
     if (version === 2) { _ensureV2Maps(); return rpaMap2; }
     return rpaMap;
+  }
+
+  // Whole-word lookup table for toPahawh.  While scanning a word, toPahawh
+  // walks this table letter by letter, so a recognised word is found without
+  // slicing a new string or hashing it — about 3× faster on large texts.
+  // Building it costs a few milliseconds, so it is only built once the page
+  // has converted enough text to repay that; pages that convert a few words
+  // keep the plain map lookup.  Flat transitions: 26 slots (a–z) per node,
+  // 0 = no transition, node 0 = root (about 7,200 nodes; ids fit in 16 bits).
+  const _tokenTables = new Map();              // syllable map → { next, value }
+  const _TOKEN_TABLE_AFTER = 100000;           // characters converted before building
+  const _charsConverted = new Map();           // syllable map → characters converted
+
+  function _buildTokenTable(map) {
+    const keys = Array.from(map.keys()), vals = Array.from(map.values());
+    let cap = 8192, next = new Uint16Array(cap * 26);
+    const value = new Array(cap);
+    let nodes = 1;
+    for (let e = 0; e < keys.length; e++) {
+      const key = keys[e];
+      let node = 0;
+      for (let k = 0; k < key.length; k++) {
+        const slot = node * 26 + key.charCodeAt(k) - 97;
+        let child = next[slot];
+        if (child === 0) {
+          if (nodes === cap) { cap *= 2; const n2 = new Uint16Array(cap * 26); n2.set(next); next = n2; value.length = cap; }
+          child = nodes++;
+          next[slot] = child;
+        }
+        node = child;
+      }
+      value[node] = vals[e];
+    }
+    value.length = nodes;
+    return { next: next.slice(0, nodes * 26), value };   // trim to the nodes used
+  }
+
+  function _tokenTableFor(map, textLength) {
+    let t = _tokenTables.get(map);
+    if (t) return t;
+    const total = (_charsConverted.get(map) || 0) + textLength;
+    _charsConverted.set(map, total);
+    if (total < _TOKEN_TABLE_AFTER) return null;
+    t = _buildTokenTable(map);
+    _tokenTables.set(map, t);
+    return t;
   }
 
   // ── Structural coordinates (v2.2+) ─────────────────────────────────────────
@@ -321,6 +401,15 @@ const PahawhConverter = (() => {
       node = node.c.get(ch);
     }
     node.v = i;
+  }
+  for (const alt of _ALIAS_LIST) {          // alternate spellings → same index
+    let node = _consTrie;
+    for (let k = 0; k < alt.length; k++) {
+      const ch = alt[k];
+      if (!node.c.has(ch)) node.c.set(ch, { c: new Map() });
+      node = node.c.get(ch);
+    }
+    node.v = CONSONANTS.indexOf(CONSONANT_ALIASES[alt]);
   }
 
   function _matchConsonant(str, start) {
@@ -471,18 +560,33 @@ const PahawhConverter = (() => {
   // always remembering the longest complete match so far, and emit the correct
   // syllable even when two syllables are adjacent without a space.
 
+  // Flat transition table: every syllable codepoint lies in U+16B00–U+16B36,
+  // so each node is a row of 55 slots (0 = no transition, node 0 = root;
+  // about 6,800 nodes, so ids fit in 16 bits).
+  const _PH_SLOTS = 0x37;
+
   function _buildPahawhTrie(map) {
-    const root = { c: new Map() };           // c = children, keyed by codepoint
-    for (const [pahawh, rpa] of map) {
-      let node = root;
-      for (const ch of pahawh) {              // for...of handles SMP codepoints
-        const cp = ch.codePointAt(0);         // numeric keys hash faster than
-        if (!node.c.has(cp)) node.c.set(cp, { c: new Map() }); // surrogate-pair strings
-        node = node.c.get(cp);
+    const entries = Array.from(map);
+    let cap = 8192, next = new Uint16Array(cap * _PH_SLOTS);
+    const value = new Array(cap);
+    let nodes = 1;
+    for (let e = 0; e < entries.length; e++) {
+      const pahawh = entries[e][0];
+      let node = 0;
+      for (let k = 0; k < pahawh.length; k += 2) {        // all glyphs are surrogate pairs
+        const slot = node * _PH_SLOTS + pahawh.codePointAt(k) - 0x16B00;
+        let child = next[slot];
+        if (child === 0) {
+          if (nodes === cap) { cap *= 2; const n2 = new Uint16Array(cap * _PH_SLOTS); n2.set(next); next = n2; value.length = cap; }
+          child = nodes++;
+          next[slot] = child;
+        }
+        node = child;
       }
-      node.v = rpa;                           // v = value (RPA string)
+      value[node] = entries[e][1];                        // RPA string
     }
-    return root;
+    value.length = nodes;
+    return { next: next.slice(0, nodes * _PH_SLOTS), value };   // trim to the nodes used
   }
 
   // Built lazily — only toRPA needs them, and many pages only call toPahawh.
@@ -504,115 +608,166 @@ const PahawhConverter = (() => {
   const p2l      = new Map(SPECIAL_PAHAWH.map((c, i) => [c, SPECIAL_LATIN[i]]));
   const pSpecSet = new Set(SPECIAL_PAHAWH);
 
-  const HMONG_RPA_RE = /^(txh|ntsh|ntxh|nplh|ndlh|ndl|nts|nth|npl|nkh|nch|nrh|ntx|nph|nqh|hny|hml|ts|ph|nc|dh|tx|nr|plh|tsh|ch|xy|ny|hn|kh|nt|hl|nk|rh|nq|np|qh|hm|ml|pl|nh)[a-z]*$/i;
+  const HMONG_RPA_RE = /^(txh|ntsh|ntxh|nphl|nplh|ndlh|ndl|nts|nth|npl|nkh|nch|nrh|ntx|nph|nqh|nyh|hny|hml|hnl|ts|ph|nc|dh|tx|nr|plh|tsh|ch|xy|ny|hn|kh|nt|hl|nk|rh|nq|np|qh|hm|ml|pl|nh)[a-z]*$/i;
 
-  // Compound word auto-split
+  // Compound word auto-split (scored)
+  //
+  // Unrecognised words are decomposed into valid RPA syllables and each
+  // candidate decomposition is SCORED on how Hmong-like it looks, instead of
+  // being accepted/rejected by binary rules.  Signals:
+  //
+  //   + multi-character consonant onsets (ts, ntx, ny, hl, ...) — strongly Hmong
+  //   + explicit tone markers (b m d j v s g) on syllable ends
+  //   + longer syllables (4+ chars)
+  //   − bare-vowel syllables, toneless syllables, 2-char fragments
+  //   − English orthography on the whole word (final "-e" / "-es")
+  //
+  // The best-scoring decomposition is found with dynamic programming (so a
+  // good split is never missed because a greedy split failed), then accepted
+  // only if it clears a threshold AND at least one syllable carries a tone
+  // marker.  This admits real compounds containing k-initial or bare-vowel
+  // syllables (txojkev, koomhaum, ibtxwm) that the previous binary onset rule
+  // rejected, while rejecting more English lookalikes than before.
+  //
+  // Some words are structurally ambiguous — "licas" (li cas) has exactly the
+  // same syllable shape as "texas" — and no scoring can separate them.  Those
+  // go in _SPLIT_OVERRIDES, which is checked first and is the extension point
+  // for adding known compound words.
 
-  // Build a set of consonant onsets for split validation.
-  // Syllables without a consonant (bare vowel+tone like "a", "e", "oo") use the
-  // null consonant slot (K_INDEX = "k"), but for split validation we want to
-  // require a real consonant onset on each part to avoid false positives with
-  // English words that happen to decompose into bare-vowel Hmong syllables.
-  const _ONSET_SET = new Set();
-  for (let i = 0; i < CONSONANTS.length; i++) {
-    if (i !== K_INDEX) _ONSET_SET.add(CONSONANTS[i]);
+  // Known compounds that the scorer cannot distinguish from English words
+  // (or that fall below its evidence threshold / length minimum).
+  // Extend this map with additional common compounds as needed.
+  const _SPLIT_OVERRIDES = new Map([
+    ['licas', ['li', 'cas']],   // how       — same shape as "texas"
+    ['noqab', ['no', 'qab']],   // tasty     — same shape as "notes"
+    ['ibyam', ['ib', 'yam']],   // one kind  — just below evidence threshold
+    ['uarog', ['ua', 'rog']],   // make war  — bare-vowel first syllable
+    ['uake',  ['ua', 'ke']],    // together  — 4 chars, both toneless
+    ['kotaw', ['ko', 'taw']],   // foot      — both toneless
+  ]);
+
+  const _ONSET_SET = new Set(CONSONANTS.concat(_ALIAS_LIST));   // includes "k" and alternate spellings
+  const _TONE_SET  = new Set(['b', 'm', 'd', 'j', 'v', 's', 'g']);
+
+  /** Longest consonant onset of a syllable, or null for bare vowels. */
+  function _onsetOf(part) {
+    for (let len = Math.min(4, part.length); len >= 1; len--) {
+      const c = part.slice(0, len);
+      if (_ONSET_SET.has(c)) return c;
+    }
+    return null;
   }
 
   /**
-   * Check whether a syllable string starts with a known Hmong consonant onset.
-   * Returns false for bare-vowel syllables like "a", "ee", "oo".
+   * Score one syllable on Hmong-likeness.  A constant −1 per syllable is
+   * folded in so splits into many fragments need proportionally stronger
+   * evidence than clean two-syllable splits.
    */
-  function _hasConsonantOnset(syllable) {
-    const lower = syllable.toLowerCase();
-    // Try matching longest consonant cluster first (up to 4 chars: "nplh", "ndlh", "ntxh", "ntsh")
-    for (let len = Math.min(4, lower.length); len >= 1; len--) {
-      if (_ONSET_SET.has(lower.slice(0, len))) return true;
-    }
-    return false;
+  function _scoreSyllable(part) {
+    let s = -1;
+    const onset = _onsetOf(part);
+    if (onset === null) s += -2;            // bare vowel
+    else if (onset.length >= 2) s += 2;     // multi-char cluster
+    // single consonants (including "k"): neutral
+    if (_TONE_SET.has(part[part.length - 1])) s += 1;   // explicit tone
+    else s += -1;                                        // toneless
+    if (part.length >= 4) s += 1;
+    else if (part.length === 2) s += -1;
+    return s;
   }
+
+  const _SPLIT_THRESHOLD = -2;
+
+  // Within one conversion, unrecognised words repeat constantly (names,
+  // English words, common compounds), so callers pass a per-call cache and
+  // each distinct word is split only once.  The cache lives only for that
+  // call, so it never keeps old text alive.  Cached arrays are shared within
+  // the call; callers never mutate them.
+  const _SPLIT_CACHE_MAX = 20000;              // bounds memory on huge single calls
+
+  // Reusable DP buffers (grown on demand), so the split search allocates no
+  // per-word arrays.
+  let _dpScore = new Int32Array(64);
+  let _dpNext  = new Int32Array(64);
 
   /**
    * Attempt to split an unrecognised token into valid RPA syllables.
-   * Uses greedy left-to-right matching against the rpaMap.
-   * Returns an array of syllables if fully decomposable, or null if not.
+   * Returns an array of syllables, or null if no acceptable split exists.
    *
-   * Guards against false positives (English words that coincidentally split):
-   *   1. Minimum word length of 4 characters
-   *   2. Every split part must have a Hmong consonant onset (no bare vowels)
-   *   3. For short words (4 chars), at least one part must contain a
-   *      multi-character consonant cluster (ts, ph, ny, …) — a strong
-   *      signal the word is Hmong, not English.
-   *
-   * Example: "dabtsi" → ["dab", "tsi"]
-   *          "hello"  → null (no valid split)
-   *          "more"   → null ("mo"+"re" has no multi-char onset)
+   * Example: "dabtsi"  → ["dab", "tsi"]
+   *          "txojkev" → ["txoj", "kev"]
+   *          "hello"   → null (no valid decomposition)
+   *          "notes"   → null (decomposable, but scores as English)
    */
-
-  // Set of multi-character consonant onsets (2+ chars) for short-word guard
-  const _MULTI_ONSET_SET = new Set();
-  for (const c of CONSONANTS) {
-    if (c.length >= 2 && c !== "k") _MULTI_ONSET_SET.add(c);
+  function _splitCompound(word, map, cache) {
+    const hit = cache.get(word);
+    if (hit !== undefined) return hit;
+    const parts = _splitCompoundUncached(word, map);
+    if (cache.size >= _SPLIT_CACHE_MAX) cache.clear();
+    cache.set(word, parts);
+    return parts;
   }
 
-  function _hasMultiCharOnset(syllable) {
-    const lower = syllable.toLowerCase();
-    for (let len = Math.min(4, lower.length); len >= 2; len--) {
-      if (_MULTI_ONSET_SET.has(lower.slice(0, len))) return true;
-    }
-    return false;
-  }
-
-  function _splitCompound(word, map) {
+  function _splitCompoundUncached(word, map) {
     const lower = word.toLowerCase();
 
-    // Guard: minimum 4 characters to attempt splitting (lowered from 5)
-    if (lower.length < 4) return null;
+    // Pre-filter: letters only
+    if (!/^[a-z]+$/i.test(lower)) return null;
 
-    // Pre-filter: must start with a letter
-    if (!/^[a-z]/i.test(lower)) return null;
-
-    // Recursive split with memoization
-    const memo = new Map();
-
-    function solve(str) {
-      if (str === "") return [];
-      if (memo.has(str)) return memo.get(str);
-
-      // Greedy: try longest prefix first.  No map key is longer than
-      // MAX_SYL_LEN, so don't probe prefixes beyond it — this bounds the
-      // worst case (long unrecognised English tokens) to O(n·MAX_SYL_LEN)
-      // substring checks instead of O(n²).
-      for (let end = Math.min(str.length, MAX_SYL_LEN); end >= 1; end--) {
-        const prefix = str.slice(0, end);
-        if (map.has(prefix)) {
-          const rest = solve(str.slice(end));
-          if (rest !== null) {
-            const result = [prefix, ...rest];
-            memo.set(str, result);
-            return result;
-          }
-        }
+    // Known compounds first — bypasses scoring AND the length minimum.
+    const override = _SPLIT_OVERRIDES.get(lower);
+    if (override) {
+      const parts = override.slice();
+      if (word[0] !== word[0].toLowerCase()) {
+        parts[0] = parts[0][0].toUpperCase() + parts[0].slice(1);
       }
-
-      memo.set(str, null);
-      return null;
+      return parts;
     }
 
-    const parts = solve(lower);
+    // Guard: minimum 5 characters to attempt scored splitting
+    if (lower.length < 5) return null;
 
-    // Must split into at least 2 parts — single matches would have been found already
-    if (!parts || parts.length < 2) return null;
+    // Dynamic programming over suffixes: for each start i, the best-scoring
+    // decomposition of lower[i..] is its first syllable lower[i..next[i])
+    // plus the best decomposition of the rest.  next[i] = -1 means lower[i..]
+    // cannot be decomposed.  Ties keep the shortest first syllable (strict ">").
+    // Only the winning chain is turned into strings, once, at the end.
+    const n = lower.length;
+    if (_dpScore.length <= n) { _dpScore = new Int32Array(n + 1); _dpNext = new Int32Array(n + 1); }
+    const score = _dpScore, next = _dpNext;
+    score[n] = 0; next[n] = n;
 
-    // Guard: every part must have a Hmong consonant onset (rejects bare vowels)
-    for (const part of parts) {
-      if (!_hasConsonantOnset(part)) return null;
+    for (let i = n - 1; i >= 0; i--) {
+      next[i] = -1;
+      const jMax = Math.min(n, i + MAX_SYL_LEN);   // no syllable is longer
+      for (let j = i + 1; j <= jMax; j++) {
+        if (next[j] === -1) continue;           // rest can't be split: skip the lookup
+        const part = lower.slice(i, j);
+        if (!map.has(part)) continue;
+        const sc = _scoreSyllable(part) + score[j];
+        if (next[i] === -1 || sc > score[i]) { score[i] = sc; next[i] = j; }
+      }
     }
 
-    // Short-word guard: for 4-character words, require at least one part to
-    // contain a multi-character consonant cluster (ts, ph, ny, …).  This
-    // prevents English words like "more" → ["mo","re"] from splitting while
-    // allowing Hmong-like 4-char compounds that contain distinctive clusters.
-    if (lower.length < 5 && !parts.some(_hasMultiCharOnset)) return null;
+    if (next[0] === -1) return null;
+
+    // Rebuild the chosen syllables; need at least two, and at least one must
+    // end in an explicit tone marker (all-toneless decompositions are the
+    // signature of English words: "pho ne", "to yo ta", "pia no").
+    const parts = [];
+    let hasTone = false;
+    for (let i = 0; i < n; i = next[i]) {
+      const end = next[i];
+      parts.push(lower.slice(i, end));
+      if (_TONE_SET.has(lower[end - 1])) hasTone = true;
+    }
+    if (parts.length < 2 || !hasTone) return null;
+
+    // English-orthography penalty on the whole word (silent-e / plural-es)
+    let total = score[0];
+    if (lower.endsWith('es'))     total += -3;
+    else if (lower.endsWith('e')) total += -2;
+    if (total < _SPLIT_THRESHOLD) return null;
 
     // Restore original capitalization on first syllable
     if (word[0] !== word[0].toLowerCase()) {
@@ -631,12 +786,13 @@ const PahawhConverter = (() => {
     const map = _getRpaMap(version);
     const result = {};
     const words = text.split(/(\s+)/);
+    const cache = new Map();
 
     for (const w of words) {
       if (!w.trim()) continue;
       const lower = w.toLowerCase();
       if (map.has(lower)) continue; // already a valid syllable
-      const parts = _splitCompound(w, map);
+      const parts = _splitCompound(w, map, cache);
       if (parts) {
         result[w] = parts.join(" ");
       }
@@ -661,10 +817,15 @@ const PahawhConverter = (() => {
   function toPahawh(text, mode = 'plain', version = 3, options = {}) {
     text = text.normalize('NFC');             // Defensive: normalize input
     const map         = _getRpaMap(version);
+    const tokTable    = _tokenTableFor(map, text.length);
+    const useTable    = tokTable !== null;
+    const tokNext     = useTable ? tokTable.next  : null;
+    const tokValue    = useTable ? tokTable.value : null;
     const usePahPunct = options.pahawhPunctuation || false;
     const usePahNum   = options.pahawhNumerals    || false;
     const usePahRedup = options.pahawhRedup        || false;
     const useAutoSplit = options.autoSplit !== false; // ON by default
+    let splitCache = null;                            // per-call, created on first use
     const numMap      = version === 2 ? ASCII_TO_PAH_DIGIT_V2 : ASCII_TO_PAH_DIGIT_V3;
 
     const isHtml = mode === 'html';
@@ -702,20 +863,25 @@ const PahawhConverter = (() => {
       const isLastLine = lineIdx === lastLineIdx;
       let lastPahWord = "";  // track last Pahawh word for inline reduplication
 
-      // Flush the accumulated word (slice once instead of concatenating
-      // character-by-character — avoids one string allocation per letter).
-      // hasUpper comes from the scan loop, letting the common all-lowercase
-      // case skip the toLowerCase() allocation.
-      const flushWord = (word, hasUpper, isLastToken = false) => {
-        const key = hasUpper ? word.toLowerCase() : word;
-        let pahawh = null;
-
-        if (map.has(key)) {
-          pahawh = map.get(key);
+      // Flush the word spanning line[start..end).  With the lookup table, node
+      // is where the scan loop's walk ended (-1 = fell off the table), so a
+      // recognised word needs no new string.  Without it, the word is sliced
+      // once and looked up in the map; hasUpper lets all-lowercase words skip
+      // toLowerCase().  Map values are never undefined.
+      const flushWord = (start, end, node, hasUpper, isLastToken = false) => {
+        let word = null, pahawh;
+        if (useTable) {
+          pahawh = node > 0 ? tokValue[node] : undefined;
         } else {
+          word = line.slice(start, end);
+          pahawh = map.get(hasUpper ? word.toLowerCase() : word);
+        }
+
+        if (pahawh === undefined) {
+          if (word === null) word = line.slice(start, end);
           // Try auto-split on unrecognised tokens
           if (useAutoSplit) {
-            const parts = _splitCompound(word, map);
+            const parts = _splitCompound(word, map, splitCache || (splitCache = new Map()));
             if (parts) {
               // Convert each split syllable individually
               const converted = parts.map(p => map.get(p.toLowerCase()) ?? p);
@@ -760,16 +926,19 @@ const PahawhConverter = (() => {
       };
 
       let hasUpper = false;
+      let node = 0;          // lookup-table position for the current word (-1 = no match)
       for (let i = 0; i < line.length; i++) {
         const code = line.charCodeAt(i);
         if (code >= 97 && code <= 122) {
-          if (wordStart < 0) wordStart = i;
-        } else if (code >= 65 && code <= 90) {
-          if (wordStart < 0) wordStart = i;
+          if (wordStart < 0) { wordStart = i; node = 0; }
+          if (useTable && node >= 0) node = tokNext[node * 26 + code - 97] || -1;
+        } else if (code >= 65 && code <= 90) {          // upper case: look up as lower
+          if (wordStart < 0) { wordStart = i; node = 0; }
+          if (useTable && node >= 0) node = tokNext[node * 26 + code - 65] || -1;
           hasUpper = true;
         } else {
           if (wordStart >= 0) {
-            flushWord(line.slice(wordStart, i), hasUpper);
+            flushWord(wordStart, i, node, hasUpper);
             wordStart = -1;
             hasUpper = false;
           }
@@ -790,7 +959,7 @@ const PahawhConverter = (() => {
           }
         }
       }
-      if (wordStart >= 0) flushWord(line.slice(wordStart), hasUpper, isLastLine);
+      if (wordStart >= 0) flushWord(wordStart, line.length, node, hasUpper, isLastLine);
       return out;
     }).join("\n");
 
@@ -839,6 +1008,9 @@ const PahawhConverter = (() => {
     _singleConsMap.set(pahCons, rpa);
     _singleConsRevMap.set(rpa.toLowerCase(), pahCons);
   }
+  for (const alt of _ALIAS_LIST) {
+    _singleConsRevMap.set(alt + "au", _singleConsRevMap.get(CONSONANT_ALIASES[alt] + "au"));
+  }
 
   // Core: toRPA
 
@@ -876,7 +1048,7 @@ const PahawhConverter = (() => {
 
   function toRPA(text, version = 3, options = {}) {
     text = text.normalize('NFC');             // Improvement 1: normalize input
-    const trie = _getPhTrie(version);
+    const { next: trieNext, value: trieValue } = _getPhTrie(version);
     const useSingleCons = options.singleConsonants || false;
     let cap = true;
 
@@ -904,16 +1076,18 @@ const PahawhConverter = (() => {
         // (None of the special-character branches below can match a
         // codepoint in this range, so skipping them is behaviour-identical.)
         if (cp >= SYL_CP_LO && cp <= SYL_CP_HI) {
-          let node = trie, bestEnd = 0, bestRpa = null;
+          let node = 0, bestEnd = 0, bestRpa = null;
           let j = i, jcp = cp;
           for (;;) {
-            const child = node.c.get(jcp);
-            if (!child) break;
+            const child = trieNext[node * _PH_SLOTS + jcp - SYL_CP_LO];
+            if (child === 0) break;
             node = child;
-            j += jcp > 0xFFFF ? 2 : 1;
-            if (node.v !== undefined) { bestEnd = j; bestRpa = node.v; }
+            j += 2;                                       // syllable glyphs are surrogate pairs
+            const v = trieValue[node];
+            if (v !== undefined) { bestEnd = j; bestRpa = v; }
             if (j >= len) break;
             jcp = line.codePointAt(j);
+            if (jcp < SYL_CP_LO || jcp > SYL_CP_HI) break;
           }
 
           if (bestRpa) {
@@ -923,15 +1097,10 @@ const PahawhConverter = (() => {
             continue;
           }
 
-          // Fallback: single-consonant mode
+          // Fallback: single-consonant mode.  Try the glyph + diacritic PAIR
+          // first: 𖬥𖬰 is "zau", while the bare 𖬥 alone is "hlau".
           if (useSingleCons) {
             const single = String.fromCodePoint(cp);
-            if (_singleConsMap.has(single)) {
-              emitRpa(_singleConsMap.get(single));
-              i += adv;
-              prevWasDigit = false;
-              continue;
-            }
             if (i + adv < len) {
               const ncp  = line.codePointAt(i + adv);
               const pair = single + String.fromCodePoint(ncp);
@@ -941,6 +1110,12 @@ const PahawhConverter = (() => {
                 prevWasDigit = false;
                 continue;
               }
+            }
+            if (_singleConsMap.has(single)) {
+              emitRpa(_singleConsMap.get(single));
+              i += adv;
+              prevWasDigit = false;
+              continue;
             }
           }
 
@@ -1290,9 +1465,10 @@ const PahawhConverter = (() => {
     VOWELS:     Object.freeze(VOWEL_ROOTS.slice()),
     TONES:      Object.freeze(TONE_SUFFIXES.slice()),
     K_INDEX:    K_INDEX,
+    CONSONANT_ALIASES: Object.freeze(Object.assign({}, CONSONANT_ALIASES)),
 
-    _singleConsMap,     // exposed for round-trip in app.js (Pahawh → RPA)
-    _singleConsRevMap,  // exposed for round-trip in app.js (RPA → Pahawh)
+    _singleConsMap,     // standalone consonant glyph → RPA label (Pahawh → RPA)
+    _singleConsRevMap,  // RPA label → standalone consonant glyph (RPA → Pahawh)
   };
 
 })();
